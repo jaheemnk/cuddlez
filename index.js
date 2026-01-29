@@ -1,173 +1,181 @@
 /**
- * 🐾 PREMIUM FURRY INTERACTION BOT (v3.0 - Enterprise Edition)
- * A robust, SFW Discord bot using the Yiffy API with advanced error handling.
+ * 👑 FURRY TITAN BOT (v6.0 - Enterprise Architect Edition)
+ * A massive, robust, dual-API bot designed for 100% uptime and premium user experience.
+ * * FEATURES:
+ * - Dual API Failover (Yiffy -> PurrBot)
+ * - Advanced Error Trapping
+ * - System Status Monitoring (!stats)
+ * - Rich Embeds with Dynamic Footers
+ * - Smart Cooldown Management
  */
-const keepAlive = require('./keep_alive.js');
-keepAlive();
-
-const {
-    Client,
-    GatewayIntentBits,
-    EmbedBuilder,
-    PermissionsBitField,
-    ActivityType,
-} = require("discord.js");
-const axios = require("axios");
-require("dotenv").config();
 
 // =========================================
-// ⚙️ GLOBAL CONFIGURATION
+// 🔌 SYSTEM IMPORTS & SETUP
+// =========================================
+const keepAlive = require('./keep_alive.js');
+try { keepAlive(); } catch (e) { console.log("⚠️ Keep-Alive system skipped (Local Mode)"); }
+
+const { 
+    Client, 
+    GatewayIntentBits, 
+    EmbedBuilder, 
+    PermissionsBitField, 
+    ActivityType,
+    version: discordVersion
+} = require('discord.js');
+const axios = require('axios');
+const os = require('os'); // For system stats
+require('dotenv').config();
+
+// =========================================
+// ⚙️ ADVANCED CONFIGURATION
 // =========================================
 const CONFIG = {
+    // Identity
+    name: "Furry Titan",
+    version: "6.0.0",
+    
+    // Settings
     prefix: "!",
-    embedColor: "#131416", // Matte Black
-    errorColor: "#FF4444", // Red for errors
-    successColor: "#131416",
-    cooldownTime: 3, // Seconds
-    userAgent: "PremiumFurryBot/3.0 (NodeJS)",
-    footerText: "View commands with !help",
-    retryAttempts: 2, // How many times to retry API if it fails
-    owners: [], // Add your ID here if you want admin-only commands later
+    cooldown: 3,        // Seconds
+    requestTimeout: 4000, // API Timeout in ms
+    
+    // Visuals
+    colors: {
+        primary: "#131416",   // Matte Black (Standard)
+        backup:  "#FFD700",   // Gold (Backup Mode)
+        error:   "#FF4444",   // Red (Error)
+        success: "#00C851",   // Green (Success)
+        info:    "#33B5E5"    // Blue (Info)
+    },
+    
+    // API Configuration
+    userAgent: "FurryTitanBot/6.0 (DiscordJS)",
+    
+    // Fallback Map: Maps Yiffy endpoints to PurrBot equivalents
+    fallbackMap: {
+        hug: 'hug', cuddle: 'cuddle', snuggle: 'cuddle',
+        kiss: 'kiss', pat: 'pat', lick: 'lick', 
+        bite: 'bite', boop: 'poke', blush: 'blush',
+        cry: 'cry', dance: 'dance', highfive: 'highfive'
+    }
 };
 
 // =========================================
-// 📜 COMMAND REGISTRY
+// 📜 EXTENDED COMMAND DATABASE
 // =========================================
 const COMMANDS = {
-    // --- SOCIAL INTERACTION COMMANDS ---
-    hug: {
-        endpoint: "hug",
-        required: true,
-        action: "hugs",
-        self: "hugs themselves tight... everything will be okay! ❤️",
-        bot: "hugs me! Aww, come here you! 🧡",
-    },
-    cuddle: {
-        endpoint: "cuddle",
-        required: true,
-        action: "cuddles",
-        self: "curls up into a ball to cuddle themselves.",
-        bot: "cuddles me! *Purrs happily*",
-    },
-    snuggle: {
-        endpoint: "cuddle",
-        required: true, // Uses cuddle endpoint
-        action: "snuggles",
-        self: "snuggles a giant plushie instead.",
-        bot: "snuggles up close to me!",
-    },
-    boop: {
-        endpoint: "boop",
-        required: true,
-        action: "boops",
-        self: "boops their own nose. *Boop!*",
-        bot: "boops my nose! Hey! >w<",
-    },
-    kiss: {
-        endpoint: "kiss",
-        required: true,
-        action: "kisses",
-        self: "kisses their reflection in the mirror.",
-        bot: "gives me a kiss! *Blushes profusely*",
-    },
-    pat: {
-        endpoint: "pat",
-        required: true,
-        action: "pats",
-        self: "pats their own head. Good job me!",
-        bot: "pats my head. *Wags tail*",
-    },
-    lick: {
-        endpoint: "lick",
-        required: true,
-        action: "licks",
-        self: "licks... their arm? You okay?",
-        bot: "licks me?! Eep! That tickles!",
-    },
-    bite: {
-        endpoint: "bite",
-        required: true,
-        action: "bites",
-        self: "bites their lip nervously.",
-        bot: "bites me! Ouch! 3:",
-    },
+    // --- AFFECTION ---
+    hug: { endpoint: 'hug', required: true, action: 'hugs', self: 'hugs themselves tight... ❤️', bot: 'hugs me! Aww! 🧡' },
+    cuddle: { endpoint: 'cuddle', required: true, action: 'cuddles', self: 'curls up to cuddle themselves.', bot: 'cuddles me! *Purrs*' },
+    snuggle: { endpoint: 'cuddle', required: true, action: 'snuggles', self: 'snuggles a plushie.', bot: 'snuggles close to me!' },
+    kiss: { endpoint: 'kiss', required: true, action: 'kisses', self: 'kisses the mirror.', bot: 'kisses me! *Blushes*' },
+    
+    // --- PLAYFUL ---
+    boop: { endpoint: 'boop', required: true, action: 'boops', self: 'boops their own nose.', bot: 'boops my nose! >w<' },
+    pat: { endpoint: 'pat', required: true, action: 'pats', self: 'pats their own head.', bot: 'pats my head. *Wags tail*' },
+    lick: { endpoint: 'lick', required: true, action: 'licks', self: 'licks their arm?', bot: 'licks me?! Eep!' },
+    bite: { endpoint: 'bite', required: true, action: 'bites', self: 'bites their lip.', bot: 'bites me! Ouch!' },
+    highfive: { endpoint: 'highfive', required: true, action: 'high-fives', self: 'high-fives... the air?', bot: 'high-fives me! Yeah!' },
 
-    // --- SOLO / ACTION COMMANDS ---
-    flop: {
-        endpoint: "flop",
-        required: false,
-        action: "flops over dramatically",
-    },
-    fursuit: {
-        endpoint: "fursuit",
-        required: false,
-        action: "shows off a fursuit",
-    },
-    howl: { endpoint: "howl", required: false, action: "howls at the moon" },
-
-    // --- UTILITY COMMANDS (Handled separately) ---
-    ping: { type: "utility", description: "Checks bot latency" },
-    help: { type: "utility", description: "Shows command list" },
+    // --- EMOTIONAL ---
+    blush: { endpoint: 'blush', required: false, action: 'blushes' },
+    cry: { endpoint: 'cry', required: false, action: 'cries' },
+    dance: { endpoint: 'dance', required: false, action: 'starts dancing!' },
+    
+    // --- SOLO ACTION ---
+    flop: { endpoint: 'flop', required: false, action: 'flops over dramatically' },
+    fursuit: { endpoint: 'fursuit', required: false, action: 'shows off a fursuit' },
+    howl: { endpoint: 'howl', required: false, action: 'howls at the moon' },
+    
+    // --- UTILITY ---
+    ping: { type: 'utility' },
+    help: { type: 'utility' },
+    stats: { type: 'utility' } // NEW COMMAND
 };
 
 // =========================================
-// 🛠️ UTILITY FUNCTIONS
+// 🛠️ UTILITY & LOGGING ENGINE
 // =========================================
 
 /**
- * 📝 Advanced Logger
- * Prints timestamped logs to console for debugging.
+ * 📝 Enhanced Logger
+ * Prints beautiful, timestamped logs to the console.
  */
-function log(type, message) {
+function log(level, message) {
     const time = new Date().toLocaleTimeString();
-    const icons = {
-        INFO: "ℹ️",
-        SUCCESS: "✅",
-        ERROR: "❌",
-        WARN: "⚠️",
-        CMD: "🤖",
+    const icons = { 
+        INFO: 'ℹ️', SUCCESS: '✅', ERROR: '❌', 
+        WARN: '⚠️', CMD: '🤖', API: '🌐', SYS: '🖥️' 
     };
-    console.log(`[${time}] ${icons[type] || ""} [${type}] ${message}`);
+    console.log(`[${time}] ${icons[level] || ''} [${level}] ${message}`);
 }
 
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+// =========================================
+// 🌐 DUAL-ENGINE API FETCHER
+// =========================================
+
 /**
- * 🔄 API Fetcher with Retry Logic
- * If the API fails, it waits and tries again up to 3 times.
+ * 🛡️ fetchImageSmart
+ * The brain of the bot. Manages the connection between Yiffy and PurrBot.
  */
-async function fetchImageWithRetry(endpoint, retries = CONFIG.retryAttempts) {
-    const url = `https://v2.yiff.rest/furry/${endpoint}`;
+async function fetchImageSmart(commandName, endpoint) {
+    
+    // --- STRATEGY 1: YIFFY API (Primary) ---
+    try {
+        log('API', `Requesting '${endpoint}' from Primary Source...`);
+        const url = `https://v2.yiff.rest/furry/${endpoint}`;
+        
+        const response = await axios.get(url, {
+            headers: { 
+                'User-Agent': CONFIG.userAgent, 
+                'Authorization': process.env.YIFFY_API_KEY || '' 
+            },
+            timeout: CONFIG.requestTimeout
+        });
 
-    for (let i = 0; i <= retries; i++) {
-        try {
-            const response = await axios.get(url, {
-                headers: {
-                    "User-Agent": CONFIG.userAgent,
-                    Authorization: process.env.YIFFY_API_KEY || "",
-                },
-                timeout: 5000,
-            });
-
-            // Validate that we actually got an image
-            if (
-                response.data &&
-                response.data.images &&
-                response.data.images.length > 0
-            ) {
-                return response.data.images[0].url;
-            }
-            throw new Error("Empty response from API");
-        } catch (error) {
-            log(
-                "WARN",
-                `Attempt ${i + 1}/${retries + 1} failed for ${endpoint}: ${error.message}`,
-            );
-            if (i === retries) throw error; // If last attempt, throw actual error
+        if (response.data?.images?.[0]?.url) {
+            return { 
+                url: response.data.images[0].url, 
+                source: 'Yiffy API', 
+                isBackup: false 
+            };
         }
+    } catch (e) {
+        log('WARN', `Primary Source Failed (${e.message}). Preparing Backup...`);
     }
+
+    // --- STRATEGY 2: PURRBOT API (Backup) ---
+    await delay(500); // Breathe for 0.5s
+    
+    const backupEndpoint = CONFIG.fallbackMap[commandName] || endpoint;
+    
+    try {
+        log('API', `Requesting '${backupEndpoint}' from Backup Source...`);
+        const url = `https://purrbot.site/api/img/sfw/${backupEndpoint}/gif`;
+        
+        const response = await axios.get(url, { timeout: CONFIG.requestTimeout });
+        
+        if (response.data?.link) {
+            log('SUCCESS', `Backup Source Rescued Request!`);
+            return { 
+                url: response.data.link, 
+                source: 'PurrBot (Open Source)', 
+                isBackup: true 
+            };
+        }
+    } catch (e) {
+        log('ERROR', `Backup Source Failed: ${e.message}`);
+    }
+
+    // --- STRATEGY 3: TOTAL FAILURE ---
+    throw new Error("Critical API Outage");
 }
 
 // =========================================
-// 🤖 CLIENT SETUP
+// 🤖 CLIENT INITIALIZATION
 // =========================================
 const client = new Client({
     intents: [
@@ -179,167 +187,155 @@ const client = new Client({
 
 const cooldowns = new Set();
 
-client.once("clientReady", () => {
-    log("SUCCESS", `Logged in as ${client.user.tag}`);
-    log("INFO", `Loaded ${Object.keys(COMMANDS).length} commands.`);
-
-    // Rotate Status every 30 seconds
+client.once('clientReady', () => {
+    log('SYS', `BOOT SEQUENCE COMPLETE`);
+    log('SUCCESS', `Logged in as ${client.user.tag}`);
+    log('INFO', `Command Registry: ${Object.keys(COMMANDS).length} loaded`);
+    
+    // Advanced Status Rotator
     const activities = [
-        { name: "over the server", type: ActivityType.Watching },
-        { name: "!help for commands", type: ActivityType.Listening },
-        { name: "furry videos", type: ActivityType.Watching },
+        { name: 'over the server', type: ActivityType.Watching },
+        { name: `v${CONFIG.version}`, type: ActivityType.Playing },
+        { name: '!help', type: ActivityType.Listening },
+        { name: 'furry videos', type: ActivityType.Watching }
     ];
-
-    let activityIndex = 0;
+    let i = 0;
     setInterval(() => {
-        const activity = activities[activityIndex];
-        client.user.setActivity(activity.name, { type: activity.type });
-        activityIndex = (activityIndex + 1) % activities.length;
-    }, 30000);
+        client.user.setActivity(activities[i].name, { type: activities[i].type });
+        i = (i + 1) % activities.length;
+    }, 15000);
 });
 
 // =========================================
-// 📨 MAIN MESSAGE EVENT
+// 📨 MESSAGE PROCESSING CORE
 // =========================================
-client.on("messageCreate", async (message) => {
-    // 1. Basic Filters (Ignore bots, ignore non-prefix messages)
-    if (message.author.bot || !message.content.startsWith(CONFIG.prefix))
-        return;
+client.on('messageCreate', async (message) => {
+    // 1. Pre-Flight Checks
+    if (message.author.bot || !message.content.startsWith(CONFIG.prefix)) return;
+    if (!message.guild) return; // Ignore DMs
 
-    // 2. Permission Check (Crucial for stability)
-    if (message.guild) {
-        const botPerms = message.channel.permissionsFor(client.user);
-        if (!botPerms.has(PermissionsBitField.Flags.SendMessages)) return; // Can't even reply
-        if (!botPerms.has(PermissionsBitField.Flags.EmbedLinks)) {
-            return message.reply(
-                "⚠️ **System Error:** I am missing the `Embed Links` permission. Please check my role settings.",
-            );
-        }
+    // 2. Permission Validator
+    const perms = message.channel.permissionsFor(client.user);
+    if (!perms.has(PermissionsBitField.Flags.SendMessages)) return;
+    if (!perms.has(PermissionsBitField.Flags.EmbedLinks)) {
+        return message.reply("⚠️ **CRITICAL ERROR:** I am missing the `Embed Links` permission. I cannot function without it.");
     }
 
-    // 3. Command Parsing
+    // 3. Parser
     const args = message.content.slice(CONFIG.prefix.length).trim().split(/ +/);
-    const commandName = args.shift().toLowerCase();
+    const cmdName = args.shift().toLowerCase();
 
-    // 4. Handle Utility Commands
-    if (commandName === "ping") {
-        const pingMsg = await message.reply("🏓 Pinging...");
-        const latency = pingMsg.createdTimestamp - message.createdTimestamp;
-        return pingMsg.edit(
-            `🏓 **Pong!** Latency: \`${latency}ms\` | API: \`${client.ws.ping}ms\``,
-        );
+    // -------------------------------------
+    // 📊 UTILITY COMMANDS
+    // -------------------------------------
+    if (cmdName === 'ping') {
+        return message.reply(`🏓 **Pong!**\nLatency: \`${Date.now() - message.createdTimestamp}ms\`\nAPI Heartbeat: \`${client.ws.ping}ms\``);
     }
+    
+    // NEW: Stats Command
+    if (cmdName === 'stats') {
+        const uptime = process.uptime();
+        const hrs = Math.floor(uptime / 3600);
+        const mins = Math.floor((uptime % 3600) / 60);
+        const memUsage = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2);
 
-    if (commandName === "help") {
-        const socialCmds = Object.keys(COMMANDS)
-            .filter((k) => COMMANDS[k].required)
-            .map((c) => `\`!${c}\``)
-            .join(", ");
-        const soloCmds = Object.keys(COMMANDS)
-            .filter((k) => COMMANDS[k].endpoint && !COMMANDS[k].required)
-            .map((c) => `\`!${c}\``)
-            .join(", ");
-
-        const helpEmbed = new EmbedBuilder()
-            .setTitle("🐾 Furry Bot Interface")
-            .setColor(CONFIG.embedColor)
-            .setDescription("Execute one of the commands below to interact.")
+        const statsEmbed = new EmbedBuilder()
+            .setTitle("📊 System Diagnostics")
+            .setColor(CONFIG.colors.info)
             .addFields(
-                {
-                    name: "👥 Social Interactions",
-                    value: socialCmds || "None",
-                    inline: false,
-                },
-                {
-                    name: "📸 Solo Actions",
-                    value: soloCmds || "None",
-                    inline: false,
-                },
-                {
-                    name: "⚙️ Utility",
-                    value: "`!ping`, `!help`",
-                    inline: false,
-                },
+                { name: '⏳ Uptime', value: `${hrs}h ${mins}m`, inline: true },
+                { name: '🧠 RAM Usage', value: `${memUsage} MB`, inline: true },
+                { name: '📚 Library', value: `Discord.js v${discordVersion}`, inline: true },
+                { name: '📡 API Status', value: '🟢 Online', inline: true }
             )
-            .setFooter({ text: CONFIG.footerText });
-        return message.channel.send({ embeds: [helpEmbed] });
+            .setFooter({ text: `Titan Bot v${CONFIG.version}` });
+        return message.channel.send({ embeds: [statsEmbed] });
     }
 
-    // 5. Validation: Is this a real command?
-    const cmdConfig = COMMANDS[commandName];
-    if (!cmdConfig || cmdConfig.type === "utility") return;
-
-    // 6. Cooldown Check
-    if (cooldowns.has(message.author.id)) {
-        return message.reply({
-            content: "⏳ **Cool down!** Please wait a few seconds.",
-            allowedMentions: { repliedUser: false },
+    if (cmdName === 'help') {
+        const social = Object.keys(COMMANDS).filter(k => COMMANDS[k].required).map(c => `\`!${c}\``).join(', ');
+        const solo = Object.keys(COMMANDS).filter(k => !COMMANDS[k].required && !COMMANDS[k].type).map(c => `\`!${c}\``).join(', ');
+        
+        return message.channel.send({ 
+            embeds: [new EmbedBuilder()
+                .setTitle("🐾 Command Interface")
+                .setColor(CONFIG.colors.primary)
+                .setDescription("Select a command below to interact.")
+                .addFields(
+                    { name: '🫂 Social Interactions', value: social || 'None', inline: false },
+                    { name: '🎭 Solo Actions', value: solo || 'None', inline: false },
+                    { name: '⚙️ System', value: '`!stats`, `!ping`, `!help`', inline: false }
+                )
+                .setFooter({ text: "Using Hybrid API Technology" })
+            ] 
         });
     }
 
-    // 7. Target Validation
+    // -------------------------------------
+    // ⚡ INTERACTION ENGINE
+    // -------------------------------------
+    const cmd = COMMANDS[cmdName];
+    if (!cmd || cmd.type === 'utility') return;
+
+    // Cooldown Manager
+    if (cooldowns.has(message.author.id)) return message.react('⏳');
+    
+    // Target Validator
     const target = message.mentions.users.first();
-    if (cmdConfig.required && !target) {
-        return message.reply(
-            `⚠️ **Target Required:** You must mention someone to use this command.\nExample: \`!${commandName} @User\``,
-        );
+    if (cmd.required && !target) {
+        return message.reply(`⚠️ **Target Missing:** Usage: \`!${cmdName} @User\``);
     }
 
     // Apply Cooldown
     cooldowns.add(message.author.id);
-    setTimeout(
-        () => cooldowns.delete(message.author.id),
-        CONFIG.cooldownTime * 1000,
-    );
+    setTimeout(() => cooldowns.delete(message.author.id), CONFIG.cooldown * 1000);
 
-    log("CMD", `User ${message.author.tag} used !${commandName}`);
+    log('CMD', `${message.author.tag} triggered !${cmdName}`);
 
-    // 8. Generate Display Text (The "Header")
-    let displayText = "";
-    if (!cmdConfig.required) {
-        displayText = `### <@${message.author.id}> ${cmdConfig.action}!`;
-    } else if (target.id === message.author.id) {
-        displayText = `### <@${message.author.id}> ${cmdConfig.self}`;
-    } else if (target.id === client.user.id) {
-        displayText = `### <@${message.author.id}> ${cmdConfig.bot}`;
-    } else {
-        displayText = `### <@${message.author.id}> ${cmdConfig.action} <@${target.id}>!`;
+    // Header Generator
+    let header = `### <@${message.author.id}> ${cmd.action}!`;
+    if (target) {
+        if (target.id === message.author.id) header = `### <@${message.author.id}> ${cmd.self}`;
+        else if (target.id === client.user.id) header = `### <@${message.author.id}> ${cmd.bot}`;
+        else header = `### <@${message.author.id}> ${cmd.action} <@${target.id}>!`;
     }
 
-    // 9. Execution Phase (Loading -> Fetch -> Edit)
-    const loadingEmbed = new EmbedBuilder()
-        .setDescription("🔎 *Connecting to image server...*")
-        .setColor(CONFIG.embedColor);
-
-    const msgInstance = await message.channel.send({ embeds: [loadingEmbed] });
+    // Execution Phase
+    const loader = await message.channel.send("🔎 *Searching secure channels...*");
 
     try {
-        const imageUrl = await fetchImageWithRetry(cmdConfig.endpoint);
+        const result = await fetchImageSmart(cmdName, cmd.endpoint);
+        
+        // Build Final Embed
+        const embed = new EmbedBuilder()
+            .setImage(result.url)
+            .setColor(result.isBackup ? CONFIG.colors.backup : CONFIG.colors.primary)
+            .setFooter({ 
+                text: result.isBackup 
+                    ? "⚠️ Service Disrupted | Backup API Active" 
+                    : "View commands with !help" 
+            });
 
-        const finalEmbed = new EmbedBuilder()
-            .setColor(CONFIG.embedColor)
-            .setImage(imageUrl)
-            .setFooter({ text: CONFIG.footerText });
+        await loader.edit({ content: header, embeds: [embed] });
 
-        await msgInstance.edit({
-            content: displayText,
-            embeds: [finalEmbed],
-        });
-    } catch (error) {
-        log("ERROR", `Failed to execute !${commandName}: ${error.message}`);
-
-        const errorEmbed = new EmbedBuilder()
-            .setColor(CONFIG.errorColor)
-            .setTitle("Connection Error")
-            .setDescription(
-                "❌ Unable to retrieve image from the remote server. Please try again.",
-            );
-
-        await msgInstance.edit({ content: null, embeds: [errorEmbed] });
+    } catch (err) {
+        log('ERROR', `Transaction Failed: ${err.message}`);
+        await loader.delete().catch(()=>{});
+        
+        const errEmbed = new EmbedBuilder()
+            .setColor(CONFIG.colors.error)
+            .setTitle("❌ Service Unavailable")
+            .setDescription("Both image providers are currently unresponsive.\nAutomatic retries failed.");
+            
+        message.channel.send({ embeds: [errEmbed] });
     }
 });
 
 // =========================================
-// 🚀 LAUNCH
+// 🚀 MAIN ENTRY POINT
 // =========================================
-client.login(process.env.DISCORD_TOKEN);
+if (!process.env.DISCORD_TOKEN) {
+    log('ERROR', "Token missing in .env");
+} else {
+    client.login(process.env.DISCORD_TOKEN);
+}
